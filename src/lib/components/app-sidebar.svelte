@@ -22,22 +22,22 @@
 		navMain: [
 			{
 				title: 'Dashboard',
-				url: '#',
+				url: '/dashboard',
 				icon: DashboardIcon
 			},
 			{
 				title: 'Receipts',
-				url: '#',
+				url: '/receipts',
 				icon: ReceiptIcon
 			},
 			{
 				title: 'Analytics',
-				url: '#',
+				url: '/analytics',
 				icon: ChartBarIcon
 			},
 			{
 				title: 'Budgeting',
-				url: '#',
+				url: '/budgeting',
 				icon: ChartDonutIcon
 			}
 		],
@@ -64,7 +64,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton class="data-[slot=sidebar-menu-button]:!p-1.5">
 					{#snippet child({ props })}
-						<a href="##" {...props}>
+						<a href="/dashboard" {...props}>
 							<BadgeEuroIcon class="!size-5" />
 							<span class="text-base font-semibold">Schatzmeister</span>
 						</a>
