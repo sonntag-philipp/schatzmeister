@@ -24,6 +24,11 @@ jobs:
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture:
+          - amd64
+          - arm64
     permissions:
       packages: write
       contents: read
@@ -47,6 +52,9 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+
+      - name: Set up buildx  
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
         id: push
