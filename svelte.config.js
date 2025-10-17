@@ -10,11 +10,6 @@ const config = {
 		adapter: adapter(),
 		alias: {
 			"@/*": "./path/to/lib/*",
-		},
-		experimental: {
-			tracing: {
-				server: true
-			}
 		}
 	}
 };
