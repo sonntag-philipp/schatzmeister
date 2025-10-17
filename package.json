@@ -74,6 +74,7 @@
 		"zod": "^3.25.76"
 	},
 	"dependencies": {
+		"@mistralai/mistralai": "^1.10.0",
 		"@node-rs/argon2": "^2.0.2",
 		"postgres": "^3.4.7"
 	},

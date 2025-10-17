@@ -1,11 +1,8 @@
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, request }) => {
-	console.log('New Request', {
-		...request,
-		params,
-		body: await request.json()
-	});
+    console.log(request);
+    console.log(params);
 
 	return new Response(JSON.stringify({ x: 'hallo' }), {
 		headers: {
