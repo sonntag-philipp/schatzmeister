@@ -1,0 +1,13 @@
+{
+	"servers": {
+		"SvelteKit": {
+			"type": "stdio",
+			"command": "pnpm",
+			"args": [
+				"exec",
+				"svelte-mcp"
+			]
+		}
+	},
+	"inputs": []
+}

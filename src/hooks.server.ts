@@ -1,26 +1,63 @@
-import type { Handle } from '@sveltejs/kit';
-// import * as auth from '$lib/server/auth';
+import { json, text, type Handle } from '@sveltejs/kit';
+import { env } from "$env/dynamic/private";
 
-const handleAuth: Handle = async ({ event, resolve }) => {
-	// const sessionToken = event.cookies.get(auth.sessionCookieName);
+function is_content_type(request: Request, ...types: string[]) {
+    const type = request.headers.get("content-type")?.split(";", 1)[0].trim() ?? "";
+    return types.includes(type.toLowerCase());
+}
 
-	// if (!sessionToken) {
-	// 	event.locals.user = null;
-	// 	event.locals.session = null;
-	// 	return resolve(event);
-	// }
+function is_form_content_type(request: Request) {
+    return is_content_type(
+        request,
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/plain"
+    );
+}
 
-	// const { session, user } = await auth.validateSessionToken(sessionToken);
+const handleCsrf: Handle = async ({ event, resolve }) => {
+    const request = event.request;
 
-	// if (session) {
-	// 	auth.setSessionTokenCookie(event, sessionToken, session.expiresAt);
-	// } else {
-	// 	auth.deleteSessionTokenCookie(event);
-	// }
+    const requestUrl = new URL(request.url);
+    const requestOrigin = request.headers.get("origin");
 
-	// event.locals.user = user;
-	// event.locals.session = session;
-	return resolve(event);
+    const trustedOrigins = env.CSRF_TRUSTED_ORIGINS;
+    const isTrustedOrigin = trustedOrigins && requestOrigin && trustedOrigins.split(",").includes(requestOrigin);
+
+    const isOriginForbidden = is_form_content_type(request) &&
+        (request.method === "POST" || request.method === "PUT" || request.method === "PATCH" || request.method === "DELETE") &&
+        requestOrigin !== requestUrl.origin &&
+        (!requestOrigin || !isTrustedOrigin);
+
+    if (isOriginForbidden) {
+        const message = `Cross-site ${request.method} form submissions are forbidden`;
+        const opts = { status: 403 };
+        if (request.headers.get("accept") === "application/json") {
+            return json({ message }, opts);
+        }
+        return text(message, opts);
+    }
+
+    // Add CORS headers
+    const response = await resolve(event);
+    const corsHeaders: Record<string, string> = {
+        "Access-Control-Allow-Origin": isOriginForbidden ? "null" : requestOrigin!,
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Credentials": "true"
+    };
+
+    // Handle preflight requests
+    if (request.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
+    }
+
+    // Add CORS headers to the response
+    for (const [key, value] of Object.entries(corsHeaders)) {
+        response.headers.append(key, value);
+    }
+
+    return response;
 };
 
-export const handle: Handle = handleAuth;
+export const handle: Handle = handleCsrf;
