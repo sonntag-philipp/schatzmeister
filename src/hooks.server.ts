@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/stores/logger';
-import { json, text, type Handle } from '@sveltejs/kit';
+import { text, type Handle } from '@sveltejs/kit';
 
 function is_content_type(request: Request, ...types: string[]) {
 	const type = request.headers.get('content-type')?.split(';', 1)[0].trim() ?? '';
@@ -19,9 +19,15 @@ function is_form_content_type(request: Request) {
 const handleCsrf: Handle = async ({ event, resolve }) => {
 	const request = event.request;
 
+	const json = JSON.stringify(event.request);
+
+	request.headers.entries().forEach((value) => {
+		logger.trace(value);
+	});
+
 	logger.trace({
-		url: request.url,
-		request: JSON.stringify(event.request)
+		method: request.method,
+		url: request.url
 	});
 
 	const requestUrl = new URL(request.url);

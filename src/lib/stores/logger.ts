@@ -11,33 +11,39 @@ const defaultClientLogLevel: LevelWithSilentOrString = 'silent';
 const pinoLogger: Logger = (() => {
 	let pinoOptions: LoggerOptions;
 
-	const formatters: typeof pinoOptions.formatters = {
-		level: (label) => {
-			return { level: label.toUpperCase() };
-		}
-	};
-
 	if (browser) {
-		// If logger is running in browser, pretty print it.
+		const level: LevelWithSilentOrString = env.PUBLIC_BROWSER_LOG_LEVEL ?? defaultClientLogLevel;
+
 		pinoOptions = {
 			browser: { asObject: false },
-			level: env.PUBLIC_BROWSER_LOG_LEVEL ?? defaultClientLogLevel, // set default log level
-			// format the level in the log to be uppercase.
-			formatters,
+			level,
+			formatters: {
+				level: (label) => {
+					return { level: label.toUpperCase() };
+				},
+				log: (object) => {
+					return object;
+				}
+			},
 			transport: {
 				target: 'pino-pretty',
 				options: {
-					colorize: true, // show colors in log
-					levelFirst: true, // show levels first in log
-					translateTime: true // translate the time in human readable format
+					colorize: true,
+					levelFirst: true,
+					translateTime: true
 				}
 			}
 		};
 	} else {
-		// If logger is running in the server, do not pretty print it.
+		const logLevel: LevelWithSilentOrString = env.PUBLIC_BROWSER_LOG_LEVEL ?? defaultServerLogLevel;
+
 		pinoOptions = {
-			level: env.PUBLIC_SERVER_LOG_LEVEL ?? defaultServerLogLevel,
-			formatters
+			level: logLevel,
+			formatters: {
+				level: (label) => {
+					return { level: label.toUpperCase() };
+				}
+			}
 		};
 	}
 
