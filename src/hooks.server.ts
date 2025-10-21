@@ -1,10 +1,8 @@
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/stores/logger';
+import { parseBody } from '$lib/utils/http';
 import { json, text, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import formidable from 'formidable';
-import type { IncomingMessage } from 'http';
-import { Readable } from 'stream';
 
 function is_content_type(request: Request, ...types: string[]) {
 	const type = request.headers.get('content-type')?.split(';', 1)[0].trim() ?? '';
@@ -20,56 +18,33 @@ function is_form_content_type(request: Request) {
 	);
 }
 
-const logRequest: Handle = async ({ event, resolve }) => {
+const handleLogging: Handle = async ({ event, resolve }) => {
 	// clone the request so we do not interfere with the route handlers
 	const request = event.request.clone();
 
-	let body: unknown;
-	try {
-		const contentType = request.headers.get('content-type') || '';
+	logger.trace(
+		{
+			method: request.method,
+			url: request.url,
+			headers: Object.fromEntries(request.headers.entries()),
+			body: await parseBody(request)
+		},
+		'Incoming Request'
+	);
 
-		if (contentType.includes('application/json')) {
-			body = await request.json();
-		} else if (contentType.includes('text/plain')) {
-			body = await request.text();
-		} else if (contentType.includes('application/x-www-form-urlencoded')) {
-			body = Object.fromEntries(new URLSearchParams(await request.text()));
-		} else if (contentType.includes('multipart/form-data')) {
-			// Convert Fetch API Request to Node.js IncomingMessage
-			const nodeRequest = Object.assign(Readable.from(request.body as ReadableStream), {
-				headers: Object.fromEntries(request.headers.entries()),
-				method: request.method,
-				url: request.url
-			}) as IncomingMessage;
+	const response = await resolve(event);
 
-			// Parse multipart/form-data using formidable
-			const form = formidable({ multiples: true });
+	logger.trace(
+		{
+			status: response.status,
+			statusText: response.statusText,
+			headers: Object.fromEntries(response.headers.entries()),
+			body: await parseBody(response.clone())
+		},
+		'Outgoing Response'
+	);
 
-			body = await new Promise((resolve, reject) => {
-				form.parse(nodeRequest, (err, fields, files) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve({ fields, files });
-					}
-				});
-			});
-		} else {
-			body = 'Body not logged (unsupported content type)';
-		}
-	} catch (error) {
-		logger.error({ error });
-		body = 'Failed to parse body';
-	}
-
-	logger.trace({
-		method: request.method,
-		url: request.url,
-		headers: Object.fromEntries(request.headers.entries()),
-		body
-	});
-
-	return await resolve(event);
+	return response;
 };
 
 const handleCors: Handle = async ({ event, resolve }) => {
@@ -123,4 +98,4 @@ const handleCors: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-export const handle: Handle = sequence(logRequest, handleCors);
+export const handle: Handle = sequence(handleLogging, handleCors);
