@@ -1,22 +1,8 @@
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/stores/logger';
-import { parseBody } from '$lib/utils/http';
-import { json, text, type Handle } from '@sveltejs/kit';
+import { isOriginValidationRequired, parseBody } from '$lib/utils/http';
+import { json, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-
-function is_content_type(request: Request, ...types: string[]) {
-	const type = request.headers.get('content-type')?.split(';', 1)[0].trim() ?? '';
-	return types.includes(type.toLowerCase());
-}
-
-function is_form_content_type(request: Request) {
-	return is_content_type(
-		request,
-		'application/x-www-form-urlencoded',
-		'multipart/form-data',
-		'text/plain'
-	);
-}
 
 const handleLogging: Handle = async ({ event, resolve }) => {
 	// clone the request so we do not interfere with the route handlers
@@ -47,35 +33,39 @@ const handleLogging: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-const handleCors: Handle = async ({ event, resolve }) => {
+const handleCsrf: Handle = async ({ event, resolve }) => {
 	const request = event.request;
 
-	const requestUrl = new URL(request.url);
 	const requestOrigin = request.headers.get('origin');
 
-	const trustedOrigins = env.CSRF_TRUSTED_ORIGINS;
+	const trustedOrigins = env.TRUSTED_ORIGINS;
 	const isTrustedOrigin =
 		trustedOrigins && requestOrigin && trustedOrigins.split(',').includes(requestOrigin);
 
 	const isOriginForbidden =
-		is_form_content_type(request) &&
-		(request.method === 'POST' ||
-			request.method === 'PUT' ||
-			request.method === 'PATCH' ||
-			request.method === 'DELETE') &&
-		requestOrigin !== requestUrl.origin &&
-		(!requestOrigin || !isTrustedOrigin);
+		isOriginValidationRequired(request) && (!requestOrigin || !isTrustedOrigin);
 
 	if (isOriginForbidden) {
 		const message = `Cross-site ${request.method} form submissions are forbidden`;
 		const opts = { status: 403 };
-		if (request.headers.get('accept') === 'application/json') {
-			return json({ message }, opts);
-		}
-		return text(message, opts);
+		return json({ message }, opts);
 	}
 
-	// Add CORS headers
+	return await resolve(event);
+};
+
+const handleCors: Handle = async ({ event, resolve }) => {
+	const request = event.request;
+
+	const requestOrigin = request.headers.get('origin');
+
+	const trustedOrigins = env.TRUSTED_ORIGINS;
+	const isTrustedOrigin =
+		trustedOrigins && requestOrigin && trustedOrigins.split(',').includes(requestOrigin);
+
+	const isOriginForbidden =
+		isOriginValidationRequired(request) && (!requestOrigin || !isTrustedOrigin);
+
 	const response = await resolve(event);
 
 	const corsHeaders: Record<string, string> = {
@@ -98,4 +88,4 @@ const handleCors: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-export const handle: Handle = sequence(handleLogging, handleCors);
+export const handle: Handle = sequence(handleLogging, handleCsrf, handleCors);

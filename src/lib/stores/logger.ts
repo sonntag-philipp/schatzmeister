@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { env as privateEnv } from '$env/dynamic/private';
 import { env } from '$env/dynamic/public';
 
 import pino, { type LevelWithSilentOrString, type Logger, type LoggerOptions } from 'pino';
@@ -21,17 +22,6 @@ const pinoLogger: Logger = (() => {
 				level: (label) => {
 					return { level: label.toUpperCase() };
 				}
-			}
-		};
-	} else {
-		const logLevel: LevelWithSilentOrString = env.PUBLIC_BROWSER_LOG_LEVEL ?? defaultServerLogLevel;
-
-		pinoOptions = {
-			level: logLevel,
-			formatters: {
-				level: (label) => {
-					return { level: label.toUpperCase() };
-				}
 			},
 			transport: {
 				target: 'pino-pretty',
@@ -41,6 +31,28 @@ const pinoLogger: Logger = (() => {
 					translateTime: true
 				}
 			}
+		};
+	} else {
+		const level: LevelWithSilentOrString = privateEnv.SERVER_LOG_LEVEL ?? defaultServerLogLevel;
+		const prettyLogs = privateEnv.PRETTY_LOGS === 'true';
+
+		pinoOptions = {
+			level,
+			formatters: {
+				level: (label) => {
+					return { level: label.toUpperCase() };
+				}
+			},
+			transport: !prettyLogs
+				? undefined
+				: {
+						target: 'pino-pretty',
+						options: {
+							colorize: true,
+							levelFirst: true,
+							translateTime: true
+						}
+					}
 		};
 	}
 
