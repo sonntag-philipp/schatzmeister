@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/stores/logger';
 import { isOriginValidationRequired, parseBody } from '$lib/utils/http';
-import { json, type Handle } from '@sveltejs/kit';
+import { json, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 
 const handleLogging: Handle = async ({ event, resolve }) => {
@@ -68,6 +68,10 @@ const handleCors: Handle = async ({ event, resolve }) => {
 
 	const response = await resolve(event);
 
+	if (!response.ok) {
+		return response;
+	}
+
 	const corsHeaders: Record<string, string> = {
 		'Access-Control-Allow-Origin': isOriginForbidden ? 'null' : requestOrigin!,
 		'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
@@ -89,3 +93,24 @@ const handleCors: Handle = async ({ event, resolve }) => {
 };
 
 export const handle: Handle = sequence(handleLogging, handleCsrf, handleCors);
+
+export const handleError: HandleServerError = async ({ error, event }) => {
+	const errorId = crypto.randomUUID();
+
+	logger.error(
+		{
+			errorId,
+			error,
+			method: event.request.method,
+			url: event.request.url,
+			headers: Object.fromEntries(event.request.headers.entries())
+		},
+		'Unhandled Error'
+	);
+
+	// Return a generic error message to the client
+	return {
+		message: 'An unexpected error occurred.',
+		errorId
+	};
+};
