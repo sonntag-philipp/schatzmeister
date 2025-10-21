@@ -1,6 +1,10 @@
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/stores/logger';
-import { text, type Handle } from '@sveltejs/kit';
+import { json, text, type Handle } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import formidable from 'formidable';
+import type { IncomingMessage } from 'http';
+import { Readable } from 'stream';
 
 function is_content_type(request: Request, ...types: string[]) {
 	const type = request.headers.get('content-type')?.split(';', 1)[0].trim() ?? '';
@@ -16,19 +20,60 @@ function is_form_content_type(request: Request) {
 	);
 }
 
-const handleCsrf: Handle = async ({ event, resolve }) => {
-	const request = event.request;
+const logRequest: Handle = async ({ event, resolve }) => {
+	// clone the request so we do not interfere with the route handlers
+	const request = event.request.clone();
 
-	const json = JSON.stringify(event.request);
+	let body: unknown;
+	try {
+		const contentType = request.headers.get('content-type') || '';
 
-	request.headers.entries().forEach((value) => {
-		logger.trace(value);
-	});
+		if (contentType.includes('application/json')) {
+			body = await request.json();
+		} else if (contentType.includes('text/plain')) {
+			body = await request.text();
+		} else if (contentType.includes('application/x-www-form-urlencoded')) {
+			body = Object.fromEntries(new URLSearchParams(await request.text()));
+		} else if (contentType.includes('multipart/form-data')) {
+			// Convert Fetch API Request to Node.js IncomingMessage
+			const nodeRequest = Object.assign(Readable.from(request.body as ReadableStream), {
+				headers: Object.fromEntries(request.headers.entries()),
+				method: request.method,
+				url: request.url
+			}) as IncomingMessage;
+
+			// Parse multipart/form-data using formidable
+			const form = formidable({ multiples: true });
+
+			body = await new Promise((resolve, reject) => {
+				form.parse(nodeRequest, (err, fields, files) => {
+					if (err) {
+						reject(err);
+					} else {
+						resolve({ fields, files });
+					}
+				});
+			});
+		} else {
+			body = 'Body not logged (unsupported content type)';
+		}
+	} catch (error) {
+		logger.error({ error });
+		body = 'Failed to parse body';
+	}
 
 	logger.trace({
 		method: request.method,
-		url: request.url
+		url: request.url,
+		headers: Object.fromEntries(request.headers.entries()),
+		body
 	});
+
+	return await resolve(event);
+};
+
+const handleCors: Handle = async ({ event, resolve }) => {
+	const request = event.request;
 
 	const requestUrl = new URL(request.url);
 	const requestOrigin = request.headers.get('origin');
@@ -57,6 +102,7 @@ const handleCsrf: Handle = async ({ event, resolve }) => {
 
 	// Add CORS headers
 	const response = await resolve(event);
+
 	const corsHeaders: Record<string, string> = {
 		'Access-Control-Allow-Origin': isOriginForbidden ? 'null' : requestOrigin!,
 		'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
@@ -77,4 +123,4 @@ const handleCsrf: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-export const handle: Handle = handleCsrf;
+export const handle: Handle = sequence(logRequest, handleCors);

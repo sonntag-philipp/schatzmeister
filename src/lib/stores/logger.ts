@@ -20,17 +20,6 @@ const pinoLogger: Logger = (() => {
 			formatters: {
 				level: (label) => {
 					return { level: label.toUpperCase() };
-				},
-				log: (object) => {
-					return object;
-				}
-			},
-			transport: {
-				target: 'pino-pretty',
-				options: {
-					colorize: true,
-					levelFirst: true,
-					translateTime: true
 				}
 			}
 		};
@@ -42,6 +31,14 @@ const pinoLogger: Logger = (() => {
 			formatters: {
 				level: (label) => {
 					return { level: label.toUpperCase() };
+				}
+			},
+			transport: {
+				target: 'pino-pretty',
+				options: {
+					colorize: true,
+					levelFirst: true,
+					translateTime: true
 				}
 			}
 		};
